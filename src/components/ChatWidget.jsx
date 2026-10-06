@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { API_URL, localDateValue, visitorRequest } from '../visitorApi';
+import { API_URL, getWebSocketUrl, localDateValue, visitorRequest } from '../visitorApi';
 
 const SESSION_KEY = 'ilab_chat_session';
 const CONVERSATION_KEY = 'ilab_chat_conversation';
@@ -76,9 +76,11 @@ function ChatWidget({ isAuthenticated = false, visitorAuthState = null }) {
     if (typeof WebSocket === 'undefined') return undefined;
 
     const isVisitorSocket = !isAuthenticated || !visitorAuthState?.token;
-    const socket = isVisitorSocket
-      ? new WebSocket(`ws://localhost:5000/ws?sessionId=${encodeURIComponent(sessionId)}`)
-      : new WebSocket(`ws://localhost:5000/ws?token=${encodeURIComponent(visitorAuthState.token)}`);
+    const socket = new WebSocket(getWebSocketUrl(
+      isVisitorSocket
+        ? { sessionId }
+        : { token: visitorAuthState.token }
+    ));
 
     socket.onmessage = (event) => {
       const payload = JSON.parse(event.data);
@@ -272,7 +274,7 @@ function ChatWidget({ isAuthenticated = false, visitorAuthState = null }) {
       const facilities = (result.facilities || []).filter((facility) => facility.is_active);
       if (!facilities.length) throw new Error('No visitor facilities are available right now.');
       setWorkflow({ type: 'booking', step: 'facility', facilities, facilityId: facilities[0].facility_id, date: localDateValue(), slots: [], slot: null, topic: '' });
-      addMessage('Let’s put together your appointment request.');
+      addMessage('Letâ€™s put together your appointment request.');
     } catch (error) {
       setWorkflowError(error.message);
     }
@@ -371,7 +373,7 @@ function ChatWidget({ isAuthenticated = false, visitorAuthState = null }) {
               <button type="button" onClick={beginBooking}>Book a visit</button>
               <button type="button" onClick={() => { setWorkflow({ type: 'feedback', message: '' }); setWorkflowError(''); }}>Leave feedback</button>
             </div>
-          ) : <div className="chat-guest-note">General iLAB questions only · <Link to="/login">Visitor sign in</Link></div>}
+          ) : <div className="chat-guest-note">General iLAB questions only Â· <Link to="/login">Visitor sign in</Link></div>}
           {authPrompt && <div className="chat-auth-prompt" role="status">
             <span>Sign in or create an account to manage appointments and send feedback.</span>
             <Link to="/login">Sign in</Link><Link to="/register">Register</Link>
