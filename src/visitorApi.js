@@ -1,5 +1,14 @@
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+export function getWebSocketUrl(query = {}) {
+  const socketUrl = new URL(API_URL, window.location.origin);
+  socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  socketUrl.pathname = '/ws';
+  socketUrl.search = new URLSearchParams(query).toString();
+  socketUrl.hash = '';
+  return socketUrl.toString();
+}
+
 export async function visitorRequest(path, { token, ...options } = {}) {
   const headers = new Headers(options.headers || {});
   if (token) headers.set('Authorization', `Bearer ${token}`);
