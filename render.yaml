@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: ilab-guiguinto-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://i-lab-appoinment.vercel.app
