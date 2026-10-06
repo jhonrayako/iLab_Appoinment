@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 150" role="img" aria-labelledby="title desc">
+  <title id="title">iLAB Guiguinto</title>
+  <desc id="desc">iLAB Guiguinto, the Bulacan plant tissue culture laboratory</desc>
+  <path fill="#7f5520" d="M300 66c16 1 29-5 37-17 8 10 7 22-1 30-10 10-24 9-35-1Z"/>
+  <path fill="#25a52b" d="M326 65c0-22 7-40 22-53 1 18-4 36-22 53Z"/>
+  <path fill="none" stroke="#25a52b" stroke-width="4" stroke-linecap="round" d="M325 75c0-29 6-48 23-63"/>
+  <text x="20" y="104" font-family="Georgia, serif" font-size="88" font-style="italic" font-weight="700" fill="#25a52b">i</text>
+  <text x="70" y="104" font-family="Georgia, serif" font-size="82" font-weight="700" fill="#25a52b">LAB</text>
+  <text x="270" y="103" font-family="Georgia, serif" font-size="35" font-weight="700" fill="#a17b31">GUIGUINTO</text>
+  <text x="272" y="119" font-family="Arial, sans-serif" font-size="6.5" letter-spacing="1.35" fill="#8a7a5c">THE VERY BEST TISSUE CULTURE LABORATORY</text>
+</svg>

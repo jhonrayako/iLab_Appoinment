@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120" role="img" aria-labelledby="title desc">
+  <title id="title">iLAB icon</title>
+  <desc id="desc">A green iLAB icon with a leaf and plant stem.</desc>
+  <defs>
+    <linearGradient id="leafGrad" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#3ec86a"/>
+      <stop offset="100%" stop-color="#1f7a45"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="120" rx="18" fill="#f5faf6"/>
+  <path d="M36 82c13-8 20-20 21-36 8 11 11 25 4 39-6 10-16 15-25 17z" fill="#d69b2d" opacity="0.9"/>
+  <path d="M31 88c16-2 31-13 38-31 11 7 20 19 20 32-19 15-45 18-58-1z" fill="url(#leafGrad)"/>
+  <path d="M57 86c-8-24-6-41 7-57" stroke="#1d6f4d" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <path d="M68 28c18 12 25 23 31 43" stroke="#1d6f4d" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <text x="102" y="73" font-family="Georgia, serif" font-size="44" font-style="italic" font-weight="700" fill="#1f7a45">i</text>
+  <text x="124" y="73" font-family="Georgia, serif" font-size="38" font-weight="700" fill="#1f7a45">LAB</text>
+</svg>
