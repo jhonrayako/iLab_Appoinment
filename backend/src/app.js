@@ -99,6 +99,8 @@ app.get('/ready', asyncHandler(async (req, res) => {
     await query('SELECT 1');
     res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
   } catch (error) {
+    const message = String(error?.message || error).replace(/postgres(?:ql)?:\/\/[^@\s]+@/gi, 'postgres://[redacted]@');
+    console.error('Database readiness check failed:', { code: error?.code || error?.name, message });
     res.status(503).json({ status: 'not_ready', error: 'Database unavailable' });
   }
 }));
