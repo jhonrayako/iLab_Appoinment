@@ -14,6 +14,7 @@ const initRealtime = (httpServer) => {
   wss = new WebSocket.Server({ server: httpServer, path: '/ws' });
 
   wss.on('connection', (ws, req) => {
+    let clientKey = null;
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const token = url.searchParams.get('token');
@@ -23,11 +24,11 @@ const initRealtime = (httpServer) => {
         const decoded = verifyToken(token);
         const userId = decoded.sub;
         const roleName = decoded.role_name || 'Visitor';
-        const key = getClientKey({ userId });
-        const existing = clients.get(key) || { roleName, sockets: new Set() };
+        clientKey = getClientKey({ userId });
+        const existing = clients.get(clientKey) || { roleName, sockets: new Set() };
         existing.roleName = roleName;
         existing.sockets.add(ws);
-        clients.set(key, existing);
+        clients.set(clientKey, existing);
 
         ws.send(JSON.stringify({
           type: 'connected',
@@ -36,13 +37,13 @@ const initRealtime = (httpServer) => {
           timestamp: new Date().toISOString(),
         }));
 
-        console.log(`✅ WebSocket connected: user ${userId} (${roleName})`);
+        console.log(`âœ… WebSocket connected: user ${userId} (${roleName})`);
       } else if (sessionId) {
-        const key = getClientKey({ sessionId });
-        const existing = clients.get(key) || { roleName: 'Visitor', sockets: new Set() };
+        clientKey = getClientKey({ sessionId });
+        const existing = clients.get(clientKey) || { roleName: 'Visitor', sockets: new Set() };
         existing.roleName = 'Visitor';
         existing.sockets.add(ws);
-        clients.set(key, existing);
+        clients.set(clientKey, existing);
 
         ws.send(JSON.stringify({
           type: 'connected',
@@ -51,7 +52,7 @@ const initRealtime = (httpServer) => {
           timestamp: new Date().toISOString(),
         }));
 
-        console.log(`✅ WebSocket connected: visitor session ${sessionId}`);
+        console.log(`âœ… WebSocket connected: visitor session ${sessionId}`);
       } else {
         ws.close(1008, 'Unauthorized: No token or sessionId provided');
         return;
@@ -60,38 +61,34 @@ const initRealtime = (httpServer) => {
       ws.on('message', (data) => {
         try {
           const message = JSON.parse(data);
-          console.log(`📨 WebSocket message from ${userId}:`, message.type);
+          console.log(`ðŸ“¨ WebSocket message from ${clientKey}:`, message.type);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
         }
       });
 
       ws.on('close', () => {
-        const key = token
-          ? getClientKey({ userId: verifyToken(token).sub })
-          : getClientKey({ sessionId });
+        if (!clientKey) return;
 
-        if (!key) return;
-
-        const clientConnections = clients.get(key);
+        const clientConnections = clients.get(clientKey);
         if (clientConnections) {
           clientConnections.sockets.delete(ws);
           if (clientConnections.sockets.size === 0) {
-            clients.delete(key);
+            clients.delete(clientKey);
           }
         }
       });
 
       ws.on('error', (error) => {
-        console.error(`❌ WebSocket error for ${token ? `user ${verifyToken(token).sub}` : `visitor session ${sessionId}`}:`, error);
+        console.error(`âŒ WebSocket error for ${clientKey || 'unauthenticated client'}:`, error);
       });
     } catch (error) {
-      console.error('❌ WebSocket connection error:', error);
+      console.error('âŒ WebSocket connection error:', error);
       ws.close(1008, 'Unauthorized: Invalid token');
     }
   });
 
-  console.log('🔌 WebSocket server initialized at /ws');
+  console.log('ðŸ”Œ WebSocket server initialized at /ws');
   return wss;
 };
 
@@ -117,7 +114,7 @@ const broadcast = (eventType, payload) => {
     });
   });
 
-  console.log(`📡 Broadcast '${eventType}' to ${count} client(s)`);
+  console.log(`ðŸ“¡ Broadcast '${eventType}' to ${count} client(s)`);
 };
 
 const sendToUser = (userId, eventType, payload) => {
@@ -145,7 +142,7 @@ const sendToUser = (userId, eventType, payload) => {
     }
   });
 
-  console.log(`💬 Sent '${eventType}' to user ${userId}`);
+  console.log(`ðŸ’¬ Sent '${eventType}' to user ${userId}`);
 };
 
 const sendToSession = (sessionId, eventType, payload) => {
@@ -173,7 +170,7 @@ const sendToSession = (sessionId, eventType, payload) => {
     }
   });
 
-  console.log(`💬 Sent '${eventType}' to session ${sessionId}`);
+  console.log(`ðŸ’¬ Sent '${eventType}' to session ${sessionId}`);
 };
 
 const broadcastToRole = (roleName, eventType, payload) => {
@@ -200,7 +197,7 @@ const broadcastToRole = (roleName, eventType, payload) => {
     });
   });
 
-  console.log(`📡 Broadcast '${eventType}' to ${count} ${roleName} client(s)`);
+  console.log(`ðŸ“¡ Broadcast '${eventType}' to ${count} ${roleName} client(s)`);
 };
 
 const getStats = () => {
