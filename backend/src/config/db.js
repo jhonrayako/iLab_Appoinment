@@ -3,21 +3,25 @@ require('dotenv').config();
 
 const databaseUrl = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
 const hasDatabaseParts = process.env.SUPABASE_DB_HOST && process.env.SUPABASE_DB_PASSWORD;
+const usesExplicitSsl = process.env.NODE_ENV === 'production' || databaseUrl?.includes('supabase') || hasDatabaseParts;
+
+const connectionString = databaseUrl ? new URL(databaseUrl) : null;
+if (usesExplicitSsl) {
+  connectionString?.searchParams.delete('sslmode');
+}
 
 if (!databaseUrl && !hasDatabaseParts) {
   throw new Error('Configure SUPABASE_DB_URL, DATABASE_URL, or the SUPABASE_DB_* variables');
 }
 
 const pool = new Pool({
-  connectionString: databaseUrl,
+  connectionString: connectionString?.toString(),
   host: databaseUrl ? undefined : process.env.SUPABASE_DB_HOST,
   port: databaseUrl ? undefined : Number(process.env.SUPABASE_DB_PORT || 5432),
   database: databaseUrl ? undefined : process.env.SUPABASE_DB_NAME || 'postgres',
   user: databaseUrl ? undefined : process.env.SUPABASE_DB_USER || 'postgres',
   password: databaseUrl ? undefined : process.env.SUPABASE_DB_PASSWORD,
-  ssl: process.env.NODE_ENV === 'production' || databaseUrl?.includes('supabase') || hasDatabaseParts
-    ? { rejectUnauthorized: false }
-    : undefined,
+  ssl: usesExplicitSsl ? { rejectUnauthorized: false } : undefined,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
