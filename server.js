@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
@@ -7,7 +8,14 @@ import { open } from 'sqlite';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be configured for production deployment');
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'ilab-guiguinto-dev-secret';
+const allowSeedUsers = process.env.ALLOW_SEED_USERS === 'true' || (!isProduction && process.env.ALLOW_SEED_USERS !== 'false');
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -167,24 +175,30 @@ async function initializeDatabase() {
     }
   }
 
-  const adminExists = await db.get('SELECT 1 FROM users WHERE username = ?', ['admin']);
-  if (!adminExists) {
-    const adminRole = await db.get('SELECT role_id FROM roles WHERE role_name = ?', ['Admin']);
-    const passwordHash = await bcrypt.hash('admin123', 10);
-    await db.run(
-      'INSERT INTO users (username, password_hash, email, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-      ['admin', passwordHash, 'admin@ilabguiguinto.ph', 'System', 'Administrator', adminRole.role_id]
-    );
-  }
+  if (allowSeedUsers) {
+    const adminExists = await db.get('SELECT 1 FROM users WHERE username = ?', ['admin']);
+    if (!adminExists) {
+      const adminRole = await db.get('SELECT role_id FROM roles WHERE role_name = ?', ['Admin']);
+      const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
+      const passwordHash = await bcrypt.hash(defaultAdminPassword, 10);
+      await db.run(
+        'INSERT INTO users (username, password_hash, email, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
+        ['admin', passwordHash, process.env.DEFAULT_ADMIN_EMAIL || 'admin@ilabguiguinto.ph', 'System', 'Administrator', adminRole.role_id]
+      );
+    }
 
-  const staffExists = await db.get('SELECT 1 FROM users WHERE username = ?', ['staff']);
-  if (!staffExists) {
-    const staffRole = await db.get('SELECT role_id FROM roles WHERE role_name = ?', ['Staff']);
-    const passwordHash = await bcrypt.hash('staff123', 10);
-    await db.run(
-      'INSERT INTO users (username, password_hash, email, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-      ['staff', passwordHash, 'staff@ilabguiguinto.ph', 'Front Desk', 'Staff', staffRole.role_id]
-    );
+    const staffExists = await db.get('SELECT 1 FROM users WHERE username = ?', ['staff']);
+    if (!staffExists) {
+      const staffRole = await db.get('SELECT role_id FROM roles WHERE role_name = ?', ['Staff']);
+      const defaultStaffPassword = process.env.DEFAULT_STAFF_PASSWORD || 'staff123';
+      const passwordHash = await bcrypt.hash(defaultStaffPassword, 10);
+      await db.run(
+        'INSERT INTO users (username, password_hash, email, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
+        ['staff', passwordHash, process.env.DEFAULT_STAFF_EMAIL || 'staff@ilabguiguinto.ph', 'Front Desk', 'Staff', staffRole.role_id]
+      );
+    }
+  } else if (isProduction) {
+    console.warn('Seed user creation disabled in production. Set env vars to create bootstrap accounts intentionally.');
   }
 
   const facilityCount = await db.get('SELECT COUNT(*) AS count FROM facilities');

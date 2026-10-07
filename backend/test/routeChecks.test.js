@@ -1,9 +1,61 @@
 const request = require('supertest');
+const crypto = require('crypto');
 const app = require('../src/app');
 const { signToken } = require('../src/utils/jwt');
-const { query } = require('../src/config/db');
+const { query, pool } = require('../src/config/db');
+const { hashPassword } = require('../src/utils/password');
 
 describe('Route checks', () => {
+  const testUsers = {
+    admin: { username: 'test_route_admin', email: 'test-route-admin@example.invalid' },
+    staff: { username: 'test_route_staff', email: 'test-route-staff@example.invalid' },
+  };
+  let staffPassword;
+
+  beforeAll(async () => {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Route checks must not run against a production database');
+    }
+
+    const rolesResult = await query(
+      `SELECT role_name, role_id FROM roles WHERE role_name IN ('Admin', 'Staff')`
+    );
+    const roleIds = new Map(rolesResult.rows.map(({ role_name, role_id }) => [role_name, role_id]));
+    if (!roleIds.has('Admin') || !roleIds.has('Staff')) {
+      throw new Error('Run the database schema migration before route checks');
+    }
+
+    staffPassword = `route-test-${crypto.randomBytes(24).toString('hex')}`;
+    const adminPassword = `route-test-${crypto.randomBytes(24).toString('hex')}`;
+    const adminPasswordHash = await hashPassword(adminPassword);
+    const staffPasswordHash = await hashPassword(staffPassword);
+
+    await query(
+      `INSERT INTO users (username, email, password_hash, first_name, last_name, role_id)
+       VALUES ($1, $2, $3, 'Route', 'Test Admin', $4)
+       ON CONFLICT (username) DO UPDATE SET
+         email = EXCLUDED.email,
+         password_hash = EXCLUDED.password_hash,
+         role_id = EXCLUDED.role_id,
+         is_active = true`,
+      [testUsers.admin.username, testUsers.admin.email, adminPasswordHash, roleIds.get('Admin')]
+    );
+    await query(
+      `INSERT INTO users (username, email, password_hash, first_name, last_name, role_id)
+       VALUES ($1, $2, $3, 'Route', 'Test Staff', $4)
+       ON CONFLICT (username) DO UPDATE SET
+         email = EXCLUDED.email,
+         password_hash = EXCLUDED.password_hash,
+         role_id = EXCLUDED.role_id,
+         is_active = true`,
+      [testUsers.staff.username, testUsers.staff.email, staffPasswordHash, roleIds.get('Staff')]
+    );
+  });
+
+  afterAll(async () => {
+    await pool.end();
+  });
+
   test.each([
     ['/', { message: 'Welcome to iLAB Guiguinto Backend API' }],
     ['/api/visitors', { status: 200, message: 'Visitors endpoint OK' }],
@@ -16,14 +68,32 @@ describe('Route checks', () => {
       .expect(body);
   });
 
+  test('requests from unconfigured browser origins receive an explicit CORS rejection', async () => {
+    await request(app)
+      .get('/api/health')
+      .set('Origin', 'https://unconfigured-origin.example')
+      .expect(403);
+  });
+
+  test('readiness checks the database and required application tables', async () => {
+    await request(app)
+      .get('/ready')
+      .expect(200)
+      .expect('Content-Type', /json/)
+      .expect(({ body }) => {
+        expect(body.status).toBe('ready');
+        expect(body.timestamp).toBeTruthy();
+      });
+  });
+
   test('staff operations require authentication', async () => {
     await request(app).get('/api/staff/dashboard').expect(401);
   });
 
-  test('default seeded staff account can log in', async () => {
+  test('staff account can log in', async () => {
     const response = await request(app)
       .post('/api/auth/staff/login')
-      .send({ username: 'staff', password: 'staff123' })
+      .send({ username: testUsers.staff.username, password: staffPassword })
       .expect(200);
 
     expect(response.body.success).toBe(true);
@@ -96,37 +166,55 @@ describe('Route checks', () => {
   });
 
   test('CMS reads and writes site content using the page JSON schema', async () => {
-    const adminUser = await query(`SELECT user_id FROM users WHERE username = 'admin' LIMIT 1`);
+    const adminUser = await query(
+      `SELECT user_id FROM users WHERE username = $1 LIMIT 1`,
+      [testUsers.admin.username]
+    );
     const adminToken = signToken({ sub: adminUser.rows[0].user_id, role_name: 'Admin' });
     const original = await request(app)
       .get('/api/admin/content/site')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
 
-    const updatedTitle = `CMS schema check ${Date.now()}`;
+    const updatedContent = {
+      hero_title: `CMS schema check ${Date.now()}`,
+      hero_description: 'This homepage description is managed in the CMS.',
+      mission_title: 'CMS-managed mission headline.',
+      mission_summary: 'This mission summary should be visible to visitors.',
+      phone_number: '0917 123 4567',
+      email_address: 'cms-check@example.invalid',
+      location: 'CMS Test Location',
+    };
     try {
       const saveResponse = await request(app)
         .put('/api/admin/content/site')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ hero_title: updatedTitle })
+        .send(updatedContent)
         .expect(200);
-      expect(saveResponse.body.content.hero_title).toBe(updatedTitle);
+      for (const [key, value] of Object.entries(updatedContent)) {
+        expect(saveResponse.body.content[key]).toBe(value);
+      }
 
       const publicResponse = await request(app)
         .get('/api/content/homepage')
         .expect(200);
-      expect(publicResponse.body.content.hero_title).toBe(updatedTitle);
+      for (const [key, value] of Object.entries(updatedContent)) {
+        expect(publicResponse.body.content[key]).toBe(value);
+      }
     } finally {
       await request(app)
         .put('/api/admin/content/site')
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ hero_title: original.body.content.hero_title || 'Connecting communities with science-driven plant innovation.' })
+        .send(original.body.content)
         .expect(200);
     }
   });
 
   test('uploaded CMS slide image is returned to the public homepage carousel', async () => {
-    const adminUser = await query(`SELECT user_id FROM users WHERE username = 'admin' LIMIT 1`);
+    const adminUser = await query(
+      `SELECT user_id FROM users WHERE username = $1 LIMIT 1`,
+      [testUsers.admin.username]
+    );
     const adminToken = signToken({ sub: adminUser.rows[0].user_id, role_name: 'Admin' });
     const imageData = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
     let slideId;
@@ -143,6 +231,8 @@ describe('Route checks', () => {
         })
         .expect(201);
       slideId = createResponse.body.slide.slide_id;
+      expect(createResponse.body.slide.image_data).toBeUndefined();
+      expect(createResponse.body.slide.image_url).toMatch(new RegExp(`/api/content/slides/${slideId}/image`));
 
       const homepageResponse = await request(app)
         .get('/api/content/homepage')
@@ -150,8 +240,31 @@ describe('Route checks', () => {
       const publicSlide = homepageResponse.body.slides.find((slide) => slide.slide_id === slideId);
 
       expect(publicSlide).toBeTruthy();
-      expect(publicSlide.image).toBe(imageData);
-      expect(publicSlide.image_data).toBe(imageData);
+      expect(publicSlide.image).toMatch(new RegExp(`/api/content/slides/${slideId}/image`));
+      expect(publicSlide.image_data).toBeUndefined();
+
+      const imageResponse = await request(app)
+        .get(publicSlide.image)
+        .expect(200)
+        .expect('Content-Type', /image\/gif/);
+      expect(imageResponse.body).toEqual(Buffer.from(imageData.split(',')[1], 'base64'));
+
+      const replacementImageData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/WioAAAAASUVORK5CYII=';
+      await request(app)
+        .put(`/api/admin/content/slides/${slideId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ imageUrl: '', imageData: replacementImageData })
+        .expect(200);
+
+      const updatedHomepage = await request(app)
+        .get('/api/content/homepage')
+        .expect(200);
+      const updatedSlide = updatedHomepage.body.slides.find((slide) => slide.slide_id === slideId);
+      const updatedImageResponse = await request(app)
+        .get(updatedSlide.image)
+        .expect(200)
+        .expect('Content-Type', /image\/png/);
+      expect(updatedImageResponse.body).toEqual(Buffer.from(replacementImageData.split(',')[1], 'base64'));
     } finally {
       if (slideId) {
         await request(app)

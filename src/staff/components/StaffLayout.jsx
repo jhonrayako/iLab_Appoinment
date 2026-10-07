@@ -6,7 +6,8 @@ const navItems = [
   { to: '/staff/dashboard', label: 'Overview', mark: '01' },
   { to: '/staff/appointments', label: 'Appointments', mark: '02' },
   { to: '/staff/notifications', label: 'Notifications', mark: '03' },
-  { to: '/staff/account', label: 'Account', mark: '04' },
+  { to: '/staff/e-logging', label: 'Visitor log', mark: '04' },
+  { to: '/staff/account', label: 'Account', mark: '05' },
 ];
 
 function StaffLayout() {

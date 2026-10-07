@@ -72,8 +72,9 @@ const getSentimentSummary = async ({ startDate = null, endDate = null } = {}) =>
     };
 
     result.rows.forEach(row => {
-      summary[row.sentiment_label] = row.count;
-      summary.total += row.count;
+      const count = Number(row.count);
+      summary[row.sentiment_label] = count;
+      summary.total += count;
     });
 
     return summary;
@@ -161,8 +162,9 @@ const getSentimentTrend = async ({
         };
       }
 
-      periodData[row.sentiment_label] = row.count;
-      periodData.total += row.count;
+      const count = Number(row.count);
+      periodData[row.sentiment_label] = count;
+      periodData.total += count;
     });
 
     if (periodData) {
